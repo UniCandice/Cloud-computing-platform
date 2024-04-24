@@ -1,0 +1,1755 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Jun 12 17:03:58 2015
+
+@author: ssheng
+"""
+
+import os,os.path,glob,shutil,subprocess,platform
+import optparse,sys,re
+import MySQLdb
+import csv,string
+from sts_class import Config19, Config20
+from use_mysql import call_case,call_sts,select_case,select_sts,select_sts19
+import constant
+
+
+testcase=[]
+
+randtest=''
+if sys.argv:
+   randtest=str(sys.argv[2])
+if not randtest:
+   os._exit(0)
+
+db=MySQLdb.connect(constant.mysql['host'],constant.mysql['user'],constant.mysql['password'],constant.mysql['dbname1'])
+
+cursor=db.cursor()
+sql="select * from "+"tcase"+randtest
+try:
+    cursor.execute(sql)
+    results_case=cursor.fetchall()
+    for row_case in results_case:
+        testcase.append(row_case[1])
+except:
+    print 'Error: unable to fetch data'
+    os._exit(0)
+sql="select * from computing_list where Type='Test' and Random="+randtest
+try:
+    cursor.execute(sql)
+    results_us=cursor.fetchall()
+    for row_us in results_us:
+        Users=row_us[2]
+        Solvers=row_us[3]
+        Test_Rand=row_us[4]
+except:
+    print 'Error: unable to fetch data'
+    os._exit(0)
+db.close()
+
+runexe=r'run_'+Users+r'.sh'
+testpath=''
+testpath=os.path.join(constant.path['current'],'Test'+Users+r'_'+Solvers+r'_'+str(randtest))
+if(Solvers=='ch19'):
+    sts_path=os.path.join(constant.path['solver'],r'bhcfd19.sts.template')
+elif(Solvers=='ch20'):
+    sts_path=os.path.join(constant.path['solver'],r'bhcfd20.sts.template')
+
+if not os.path.exists(testpath):
+    os.makedirs(testpath)
+
+number_path=os.path.join(testpath,r'number.txt')
+state_path=os.path.join(testpath,r'state.txt')
+downpath=os.path.join(testpath,'download')
+if not os.path.exists(downpath):
+    os.makedirs(downpath)
+
+def cp():
+    global testpath
+    global testcase
+    global Solvers
+    
+    case=select_case(testcase)
+    for line in case:
+        slist=select_sts(line[0])
+        sourcecase=line[1]
+        for s in slist:
+            repath=s[2]
+            outputdir=os.path.join(testpath,repath)
+            sourcedir=os.path.join(constant.path['data'],sourcecase)
+            
+            for files in os.listdir(sourcedir):
+                sourceFile=os.path.join(sourcedir,files) 
+                if os.path.isfile(sourceFile):
+                    if not os.path.exists(outputdir):
+                        os.makedirs(outputdir)
+                    shutil.copy(sourceFile,outputdir)
+                    
+            for files in os.listdir(sourcedir+os.sep+Solvers):
+                sourceFile=os.path.join(sourcedir+os.sep+Solvers,files) 
+                if os.path.isfile(sourceFile):
+                    if not os.path.exists(outputdir):
+                        os.makedirs(outputdir)
+                    shutil.copy(sourceFile,outputdir)
+    
+            sofile=glob.glob(constant.path['solver']+os.sep+Solvers)
+            for files in os.listdir(constant.path['solver']):
+                solverfile=os.path.join(constant.path['solver'],files)
+                if os.path.isfile(solverfile):
+                    if not os.path.exists(outputdir):
+                        os.makedirs(outputdir)
+                    if solverfile==sofile[0]:
+                        shutil.copy(solverfile,outputdir)
+
+
+def getsts():
+    global testpath
+    global testcase
+    global sts_path
+    global Solvers
+    
+    if(Solvers=='ch19'):
+        case=select_case(testcase)
+        for line in case:
+            slist=select_sts19(line[0])
+            for s in slist:
+                repath=s[2]
+                sts=Config19(filename=sts_path)
+        
+                sts['TaskName']               = s[2]
+                sts['NCPUs']                  = str(s[3])  
+                sts['Nondimension_L']         = str(s[4])
+                sts['GridType']               = str(s[5])  
+                sts['Height']                 = str(s[15])
+                sts['Mach']                   = str(s[16])
+                sts['Alpha']                  = str(s[17])
+                sts['Beta']                   = str(s[18])
+                sts['Twall']                  = str(s[19])
+                sts['Gamma']                  = str(s[23])
+                sts['Prandtl_Lam']            = str(s[24])
+                sts['Prandtl_Turb']           = str(s[25])
+                sts['ATM_Pressure']           = str(s[20])
+                sts['ATM_Density']            = str(s[21])
+                sts['ATM_Temperature']        = str(s[22])    
+                sts['TimeScheme']             = str(s[12])
+                sts['InvDiscretMethod']       = str(s[37])
+                sts['VisDiscretMethod']       = str(s[38]) 
+                sts['FluxScheme']             = str(s[13])
+                sts['Limiter']                = str(s[14])
+                sts['VisDirection']           = str(s[40])
+                sts['UnphysicsCorrect']       = str(s[41])
+                sts['TimeSizeMethod']         = str(s[42])
+                sts['RelaxFactor']            = str(s[43])         
+                sts['EntropyFix']             = str(s[44])
+                sts['EntropyFixD']            = str(s[45])
+                sts['EntropyFixO']            = str(s[46])
+                sts['JSTCoe2']                = str(s[47])
+                sts['JSTCoe4']                = str(s[48])
+                sts['FlowModel']              = str(s[11]) 
+                sts['CompressibilityCorrect'] = str(s[49])
+                sts['DES_Method']             = str(s[50])
+                sts['CDES']                   = str(s[51])
+                sts['CDES_SST']               = str(s[52])       
+                sts['IsRestart']              = str(s[26])
+                sts['IterationNum']           = str(s[27])
+                sts['CFL']                    = str(s[28])
+                sts['IOUT']                   = str(s[29])
+                sts['ErrorTol']               = str(s[30])
+                sts['InitialStepNum']         = str(s[31])    
+                sts['Ref_Area']               = str(s[32])
+                sts['Ref_Length']             = str(s[33])
+                sts['Ref_X']                  = str(s[34])
+                sts['Ref_Y']                  = str(s[35])
+                sts['Ref_Z']                  = str(s[36])
+                sts['Unsteady']               = str(s[53])
+                sts['TimeSize']               = str(s[54])
+                sts['MaxTimeSteps']           = str(s[55])
+                sts['EndTime']                = str(s[56])
+                sts['SubCFL']                 = str(s[57])
+                sts['SubStepNum']             = str(s[58])
+                sts['SubErrorTOL']            = str(s[59])
+                sts['IPlot']                  = str(s[60])
+                sts['QuasiSteadySteps']       = str(s[61])
+                sts['QuasiRestartSteps']      = str(s[62])
+                outputdir=os.path.join(testpath,repath)
+                if not os.path.exists(outputdir):
+                    os.makedirs(outputdir)           
+                sts.write(outputdir+os.sep+'bhcfd.sts')
+    
+    
+    elif(Solvers=='ch20'):
+        case=select_case(testcase)
+        for line in case:
+            slist=select_sts(line[0])
+            for s in slist:
+                repath=s[2]
+                sts=Config20(filename=sts_path)
+        
+                sts['TaskName']               = line[1]
+                sts['Nondimension_L']         = str(s[4])
+                sts['GridType']               = str(s[5])
+                sts['SolverType']             = str(s[6])
+                sts['Initial_way']            = str(s[7])
+                sts['SG1']                    = str(s[8])
+                sts['SG2']                    = str(s[9])
+                sts['SG3']                    = str(s[10])     
+                sts['Height']                 = str(s[15])
+                sts['Mach']                   = str(s[16])
+                sts['Alpha']                  = str(s[17])
+                sts['Beta']                   = str(s[18])
+                sts['Twall']                  = str(s[19])
+                sts['Gamma']                  = str(s[23])
+                sts['Prandtl_Lam']            = str(s[24])
+                sts['Prandtl_Turb']           = str(s[25])
+                sts['ATM_Pressure']           = str(s[20])
+                sts['ATM_Density']            = str(s[21])
+                sts['ATM_Temperature']        = str(s[22])   
+                sts['TimeScheme']             = str(s[12])
+                sts['InvDiscretMethod']       = str(s[37])
+                sts['VisDiscretMethod']       = str(s[38])
+                sts['SG4']                    = str(s[39])   
+                sts['FluxScheme']             = str(s[13])
+                sts['Limiter']                = str(s[14])
+                sts['VisDirection']           = str(s[40])
+                sts['UnphysicsCorrect']       = str(s[41])
+                sts['TimeSizeMethod']         = str(s[42])
+                sts['RelaxFactor']            = str(s[43])        
+                sts['EntropyFix']             = str(s[44])
+                sts['EntropyFixD']            = str(s[45])
+                sts['EntropyFixO']            = str(s[46])
+                sts['JSTCoe2']                = str(s[47])
+                sts['JSTCoe4']                = str(s[48])
+                sts['FlowModel']              = str(s[11])  
+                sts['CompressibilityCorrect'] = str(s[49])
+                sts['DES_Method']             = str(s[50])
+                sts['CDES']                   = str(s[51])
+                sts['CDES_SST']               = str(s[52])        
+                sts['IsRestart']              = str(s[26])
+                sts['IterationNum']           = str(s[27])
+                sts['CFL']                    = str(s[28])
+                sts['IOUT']                   = str(s[29])
+                sts['ErrorTol']               = str(s[30])
+                sts['InitialStepNum']         = str(s[31])
+                sts['Ref_Area']               = str(s[32])
+                sts['Ref_Length']             = str(s[33])
+                sts['Ref_X']                  = str(s[34])
+                sts['Ref_Y']                  = str(s[35])
+                sts['Ref_Z']                  = str(s[36])
+                sts['Unsteady']               = str(s[53])
+                sts['TimeSize']               = str(s[54])
+                sts['MaxTimeSteps']           = str(s[55])
+                sts['EndTime']                = str(s[56])
+                sts['SubCFL']                 = str(s[57])
+                sts['SubStepNum']             = str(s[58])
+                sts['SubErrorTOL']            = str(s[59])
+                sts['IPlot']                  = str(s[60])
+                sts['QuasiSteadySteps']       = str(s[61])
+                sts['QuasiRestartSteps']      = str(s[62])
+                outputdir=os.path.join(testpath,repath)
+                if not os.path.exists(outputdir):
+                    os.makedirs(outputdir)           
+                sts.write(outputdir+os.sep+'bhcfd.sts')
+    
+def getrunsh():
+    """ builds an run.sh for given number of processes """
+    global Users
+    global testpath
+    global Solvers
+    global testcase
+    global runexe
+    
+    
+    if(Solvers=='ch19'):
+        case=select_case(testcase)
+        for line in case:
+            slist=select_sts(line[0])
+            for s in slist:
+                repath=s[2]
+                outputdir=os.path.join(testpath,repath)
+                if not os.path.exists(outputdir):
+                    os.makedirs(outputdir) 
+                
+                runpath=os.path.join(outputdir,runexe)
+                f = open(runpath, 'w')
+            
+                processes=s[3]
+                taskname=s[2]
+                f.write("#!/bin/bash\n")
+                f.write("#PBS -N "+Users+'_'+taskname+"\n")
+                f.write("#PBS -j oe "+"\n")
+                f.write("#PBS -o ./ "+"\n")
+                f.write("#PBS -q default "+"\n")
+                f.write("#PBS -l nodes="+str(processes)+"\n")
+                f.write("#PBS -l walltime=240:00:00 \n")
+                f.write(r"# Special PBS control comments, need to change: -N and suround by"+"\n")
+                f.write("#============================"+"\n")
+                f.write("# Set up the path"+"\n")
+                f.write(r"#export PATH=/usr/local/stow/openmpi-1.2.6/bin:$PATH"+"\n")
+                f.write(r"#export LD_LIBRARY_PATH=/usr/local/stow/openmpi-1.2.6/lib:$LD_LIBRARY_PATH"+"\n")
+                f.write(r"root_dir=`echo $PBS_O_WORKDIR|sed  's/^\/media\/node[0-9][0-9]*\//\//p'`"+"\n")
+                f.write("# Set up the something \n")
+                f.write("#============================ \n")
+                f.write("exeName="+'"'+Solvers+'"'+"\n")
+                f.write("users="+'"'+Users+'"'+"\n")
+                f.write("#============================ \n")
+                f.write("# prepare to run \n")
+                f.write(r"cd $root_dir"+"\n")
+                f.write(r"echo Running on hosts `hostname`"+"\n")
+                f.write(r"echo Time is `date`"+"\n")
+                f.write(r"echo Directory is $PWD"+"\n")
+                f.write("echo This job runs on the following nodes:\n")
+                f.write(r"cat $PBS_NODEFILE"+"\n")
+                f.write(r"cat  $PBS_NODEFILE>hosts.txt"+"\n")
+                f.write(r"nodes=`wc -l hosts.txt |awk '{print $1}'`"+"\n")
+                f.write("#============================ \n")
+                f.write(r"chmod 777 $exeName "+"\n")
+                f.write(r"ulimit -s unlimited"+"\n")
+                f.write(r"./$exeName |tee output.txt "+"\n")
+                f.write("#============================ \n")
+                f.write(r"echo Finish Time is `date`"+"\n")
+                f.close()
+                
+    elif(Solvers=='ch20'):
+        case=select_case(testcase)
+        for line in case:
+            slist=select_sts(line[0])
+            for s in slist:
+                repath=s[2]
+                outputdir=os.path.join(testpath,repath)
+                if not os.path.exists(outputdir):
+                    os.makedirs(outputdir) 
+                runpath=os.path.join(outputdir,runexe)
+                f = open(runpath, 'w')
+            
+                processes=s[3]
+                taskname=s[2]
+                f.write("#!/bin/bash\n")
+                f.write("#PBS -N "+Users+'_'+taskname+"\n")
+                f.write("#PBS -j oe "+"\n")
+                f.write("#PBS -o ./ "+"\n")
+                f.write("#PBS -q default "+"\n")
+                f.write("#PBS -l nodes="+str(processes)+"\n")
+                f.write("#PBS -l walltime=240:00:00 \n")
+                f.write(r"# Special PBS control comments, need to change: -N and suround by"+"\n")
+                f.write("#============================"+"\n")
+                f.write("# Set up the path"+"\n")
+                f.write(r"#export PATH=/usr/local/stow/openmpi-1.2.6/bin:$PATH"+"\n")
+                f.write(r"#export LD_LIBRARY_PATH=/usr/local/stow/openmpi-1.2.6/lib:$LD_LIBRARY_PATH"+"\n")
+                f.write(r"root_dir=`echo $PBS_O_WORKDIR|sed  's/^\/media\/node[0-9][0-9]*\//\//p'`"+"\n")
+                f.write("# Set up the something \n")
+                f.write("#============================ \n")
+                f.write("exeName="+'"'+Solvers+'"'+"\n")
+                f.write("users="+'"'+Users+'"'+"\n")
+                f.write("#============================ \n")
+                f.write("# prepare to run \n")
+                f.write(r"cd $root_dir"+"\n")
+                f.write(r"echo Running on hosts `hostname`"+"\n")
+                f.write(r"echo Time is `date`"+"\n")
+                f.write(r"echo Directory is $PWD"+"\n")
+                f.write("echo This job runs on the following nodes:\n")
+                f.write(r"cat $PBS_NODEFILE"+"\n")
+                f.write(r"cat  $PBS_NODEFILE>hosts.txt"+"\n")
+                f.write(r"nodes=`wc -l hosts.txt |awk '{print $1}'`"+"\n")
+                f.write("#============================ \n")
+                f.write(r"chmod 777 $exeName "+"\n")
+                f.write(r"ulimit -s unlimited"+"\n")
+                f.write(r"mpirun -n $nodes -f hosts.txt ./$exeName |tee output.txt "+"\n")
+                f.write("#============================ \n")
+                f.write(r"echo Finish Time is `date`"+"\n")
+                f.close()
+
+def tecplot_mrc():
+    global Users
+    global testpath
+    global Solvers
+    global testcase
+    global runexe
+    global downpath
+    
+    if(Solvers=='ch19'):
+        case=select_case(testcase)
+        for line in case:
+            slist=select_sts(line[0])
+            for s in slist:
+                repath=s[2]
+                outputdir=os.path.join(testpath,repath)
+                if not os.path.exists(outputdir):
+                    os.makedirs(outputdir) 
+                
+                fconv_mrc=os.path.join(outputdir,r'fconv.mcr')
+                f=open(fconv_mrc, 'w')
+                f.write(constant.tecplot['version']+"\n")
+                f.write(r"$!VarSet |MFBD| = '"+outputdir+os.sep+r"afiles'"+"\n")
+                f.write(r"$!READDATASET  '"+r'"|MFBD|'+os.sep+repath+r'.FCONV" '+r"'"+"\n")
+                f.write(r"READDATAOPTION = NEW"+"\n")
+                f.write(r"RESETSTYLE = YES"+"\n")
+                f.write(r"INCLUDETEXT = NO"+"\n")
+                f.write(r"INCLUDEGEOM = NO"+"\n")
+                f.write(r"INCLUDECUSTOMLABELS = NO"+"\n")
+                f.write(r"VARLOADMODE = BYNAME"+"\n")
+                f.write(r"ASSIGNSTRANDIDS = YES"+"\n")
+                f.write(r"INITIALPLOTTYPE = XYLINE"+"\n")
+                f.write(r"VARNAMELIST = '"+r'"X" "CX" "CY" "CZ" "MX" "MY" "MZ" "QMAX" "QMIN"'+r"'"+"\n")
+                f.write(r"$!XYLINEAXIS XDETAIL 1 {TITLE{TEXTSHAPE{ISITALIC = YES}}}"+"\n")
+                f.write(r"$!XYLINEAXIS XDETAIL 1 {TITLE{TEXTSHAPE{HEIGHT = 3}}}"+"\n")
+                f.write(r"$!XYLINEAXIS XDETAIL 1 {TICKLABEL{TEXTSHAPE{ISBOLD = YES}}}"+"\n")
+                f.write(r"$!XYLINEAXIS XDETAIL 1 {TICKLABEL{TEXTSHAPE{ISITALIC = YES}}}"+"\n")
+                f.write(r"$!XYLINEAXIS YDETAIL 1 {TITLE{SHOWONAXISLINE = NO}}"+"\n")
+                f.write(r"$!XYLINEAXIS YDETAIL 1 {TICKLABEL{TEXTSHAPE{ISBOLD = YES}}}"+"\n")
+                f.write(r"$!XYLINEAXIS YDETAIL 1 {TICKLABEL{TEXTSHAPE{ISITALIC = YES}}}"+"\n")
+                f.write(r"$!ATTACHTEXT"+"\n")
+                f.write(r"ANCHORPOS"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"X = 49.2831541218638"+"\n")
+                f.write(r"Y = 91.68734491315136"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXTSHAPE"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"ISITALIC = YES"+"\n")
+                f.write(r"SIZEUNITS = FRAME"+"\n")
+                f.write(r"HEIGHT = 3.6"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXT = 'CX'"+"\n")
+                f.write(r"$!LINEMAP [1-8]  LINES{LINETHICKNESS = 0.59999999999999998}"+"\n")
+                f.write(r"$!LINEMAP [1-8]  CURVES{CURVETYPE = PARASPLINE}"+"\n")
+                f.write(r"$!PICK SETMOUSEMODE"+"\n")
+                f.write(r"MOUSEMODE = SELECT"+"\n")
+                f.write(r"$!VIEW FIT"+"\n")
+                f.write(r"$!EXPORTSETUP EXPORTFORMAT = JPEG"+"\n")
+                f.write(r"$!EXPORTSETUP IMAGEWIDTH = 900"+"\n")
+                f.write(r"$!VarSet |JPGSAVE| = '"+downpath+os.sep+repath+"_map"+r"'"+"\n")
+                f.write(r"$!EXPORTSETUP EXPORTFNAME = '|JPGSAVE|"+os.sep+r"cx.jpeg'"+"\n")
+                f.write(r"$!EXPORT"+"\n")
+                f.write(r"EXPORTREGION = CURRENTFRAME"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 5.70347394541"+"\n")
+                f.write(r"Y = 0.835607940447"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!PICK CLEAR"+"\n")
+                f.write(r"$!ATTACHTEXT"+"\n")
+                f.write(r"ANCHORPOS"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"X = 49.2831541218638"+"\n")
+                f.write(r"Y = 91.68734491315136"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXTSHAPE"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"ISITALIC = YES"+"\n")
+                f.write(r"SIZEUNITS = FRAME"+"\n")
+                f.write(r"HEIGHT = 3.6"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXT = 'CY'"+"\n")
+                f.write(r"$!ACTIVELINEMAPS = [2]"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 5.49503722084"+"\n")
+                f.write(r"Y = 3.33684863524"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!VIEW FIT"+"\n")
+                f.write(r"$!EXPORTSETUP EXPORTFNAME = '|JPGSAVE|"+os.sep+r"cy.jpeg'"+"\n")
+                f.write(r"$!EXPORT"+"\n")
+                f.write(r"EXPORTREGION = CURRENTFRAME"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 5.7729528536"+"\n")
+                f.write(r"Y = 0.845533498759"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 5.7729528536"+"\n")
+                f.write(r"Y = 0.845533498759"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!PICK CLEAR"+"\n")
+                f.write(r"$!ATTACHTEXT"+"\n")
+                f.write(r"ANCHORPOS"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"X = 49.2831541218638"+"\n")
+                f.write(r"Y = 91.68734491315136"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXTSHAPE"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"ISITALIC = YES"+"\n")
+                f.write(r"SIZEUNITS = FRAME"+"\n")
+                f.write(r"HEIGHT = 3.6"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXT = 'CZ'"+"\n")
+                f.write(r"$!ACTIVELINEMAPS = [3]"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 5.1476426799"+"\n")
+                f.write(r"Y = 4.73635235732"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!VIEW FIT"+"\n")
+                f.write(r"$!EXPORTSETUP EXPORTFNAME = '|JPGSAVE|"+os.sep+r"cz.jpeg'"+"\n")
+                f.write(r"$!EXPORT"+"\n")
+                f.write(r"EXPORTREGION = CURRENTFRAME"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 5.88213399504"+"\n")
+                f.write(r"Y = 2.7611662531"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 5.65384615385"+"\n")
+                f.write(r"Y = 0.795905707196"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!PICK CLEAR"+"\n")
+                f.write(r"$!ATTACHTEXT"+"\n")
+                f.write(r"ANCHORPOS"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"X = 49.2831541218638"+"\n")
+                f.write(r"Y = 91.68734491315136"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXTSHAPE"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"ISITALIC = YES"+"\n")
+                f.write(r"SIZEUNITS = FRAME"+"\n")
+                f.write(r"HEIGHT = 3.6"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXT = 'MX'"+"\n")
+                f.write(r"$!ACTIVELINEMAPS = [4]"+"\n")
+                f.write(r"$!LINEMAP [4]  LINES{COLOR = BLACK}"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 5.01861042184"+"\n")
+                f.write(r"Y = 3.04900744417"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!VIEW FIT"+"\n")
+                f.write(r"$!EXPORTSETUP EXPORTFNAME = '|JPGSAVE|"+os.sep+r"mx.jpeg'"+"\n")
+                f.write(r"$!EXPORT"+"\n")
+                f.write(r"EXPORTREGION = CURRENTFRAME"+"\n")
+                f.write(r"$!ACTIVELINEMAPS = [5]"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 6.27915632754"+"\n")
+                f.write(r"Y = 2.29466501241"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!VIEW FIT"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 5.71339950372"+"\n")
+                f.write(r"Y = 0.835607940447"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!PICK CLEAR"+"\n")
+                f.write(r"$!ATTACHTEXT"+"\n")
+                f.write(r"ANCHORPOS"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"X = 49.2831541218638"+"\n")
+                f.write(r"Y = 91.68734491315136"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXTSHAPE"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"ISITALIC = YES"+"\n")
+                f.write(r"SIZEUNITS = FRAME"+"\n")
+                f.write(r"HEIGHT = 3.6"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXT = 'MY'"+"\n")
+                f.write(r"$!LINEMAP [5]  LINES{COLOR = PURPLE}"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 5.44540942928"+"\n")
+                f.write(r"Y = 3.98200992556"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!VIEW FIT"+"\n")
+                f.write(r"$!EXPORTSETUP EXPORTFNAME = '|JPGSAVE|"+os.sep+r"my.jpeg'"+"\n")
+                f.write(r"$!EXPORT"+"\n")
+                f.write(r"EXPORTREGION = CURRENTFRAME"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 5.57444168734"+"\n")
+                f.write(r"Y = 0.825682382134"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!PICK CLEAR"+"\n")
+                f.write(r"$!ATTACHTEXT"+"\n")
+                f.write(r"ANCHORPOS"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"X = 49.2831541218638"+"\n")
+                f.write(r"Y = 91.68734491315136"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXTSHAPE"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"ISITALIC = YES"+"\n")
+                f.write(r"SIZEUNITS = FRAME"+"\n")
+                f.write(r"HEIGHT = 3.6"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXT = 'MZ'"+"\n")
+                f.write(r"$!ACTIVELINEMAPS = [6]"+"\n")
+                f.write(r"$!LINEMAP [6]  LINES{COLOR = CUSTOM7}"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 5.88213399504"+"\n")
+                f.write(r"Y = 3.26736972705"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!VIEW FIT"+"\n")
+                f.write(r"$!EXPORTSETUP EXPORTFNAME = '|JPGSAVE|"+os.sep+r"mz.jpeg'"+"\n")
+                f.write(r"$!EXPORT"+"\n")
+                f.write(r"EXPORTREGION = CURRENTFRAME"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 5.6935483871"+"\n")
+                f.write(r"Y = 0.795905707196"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!PICK CLEAR"+"\n")
+                f.write(r"$!ATTACHTEXT"+"\n")
+                f.write(r"ANCHORPOS"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"X = 49.2831541218638"+"\n")
+                f.write(r"Y = 91.68734491315136"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXTSHAPE"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"ISITALIC = YES"+"\n")
+                f.write(r"SIZEUNITS = FRAME"+"\n")
+                f.write(r"HEIGHT = 3.6"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXT = 'QMAX'"+"\n")
+                f.write(r"$!ACTIVELINEMAPS = [7]"+"\n")
+                f.write(r"$!LINEMAP [7]  LINES{COLOR = CUSTOM30}"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 5.13771712159"+"\n")
+                f.write(r"Y = 3.71401985112"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!VIEW FIT"+"\n")
+                f.write(r"$!EXPORTSETUP EXPORTFNAME = '|JPGSAVE|"+os.sep+r"qmax.jpeg'"+"\n")
+                f.write(r"$!EXPORT"+"\n")
+                f.write(r"EXPORTREGION = CURRENTFRAME"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 5.90198511166"+"\n")
+                f.write(r"Y = 0.756203473945"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!PICK CLEAR"+"\n")
+                f.write(r"$!ATTACHTEXT"+"\n")
+                f.write(r"ANCHORPOS"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"X = 49.2831541218638"+"\n")
+                f.write(r"Y = 91.68734491315136"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXTSHAPE"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"ISITALIC = YES"+"\n")
+                f.write(r"SIZEUNITS = FRAME"+"\n")
+                f.write(r"HEIGHT = 3.6"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXT = 'QMIN'"+"\n")
+                f.write(r"$!ACTIVELINEMAPS = [8]"+"\n")
+                f.write(r"$!LINEMAP [8]  LINES{COLOR = CUSTOM48}"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 4.6017369727"+"\n")
+                f.write(r"Y = 3.49565756824"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!VIEW FIT"+"\n")
+                f.write(r"$!EXPORTSETUP EXPORTFNAME = '|JPGSAVE|"+os.sep+r"qmin.jpeg'"+"\n")
+                f.write(r"$!EXPORT"+"\n")
+                f.write(r"EXPORTREGION = CURRENTFRAME"+"\n")
+                f.write(r"$!Quit"+"\n")
+                f.write(r"$!RemoveVar |MFBD|"+"\n")
+                f.write(r"$!RemoveVar |JPGSAVE|"+"\n")
+                f.close()
+                
+                econv_mrc=os.path.join(outputdir,r'econv.mcr')
+                f1=open(econv_mrc, 'w')
+                f1.write(constant.tecplot['version']+"\n")
+                f1.write(r"$!VarSet |MFBD| = '"+outputdir+os.sep+r"afiles'"+"\n")
+                f1.write(r"$!READDATASET  '"+r'"|MFBD|'+os.sep+repath+r'.ECONV" '+r"'"+"\n")
+                f1.write(r"READDATAOPTION = NEW"+"\n")
+                f1.write(r"RESETSTYLE = YES"+"\n")
+                f1.write(r"INCLUDETEXT = NO"+"\n")
+                f1.write(r"INCLUDEGEOM = NO"+"\n")
+                f1.write(r"INCLUDECUSTOMLABELS = NO"+"\n")
+                f1.write(r"VARLOADMODE = BYNAME"+"\n")
+                f1.write(r"ASSIGNSTRANDIDS = YES"+"\n")
+                f1.write(r"INITIALPLOTTYPE = XYLINE"+"\n")
+                f1.write(r"VARNAMELIST = '"+r'"X" "ERROR_AVE" "ERROR_MAX"'+r"'"+"\n")
+                f1.write(r"$!XYLINEAXIS XDETAIL 1 {TITLE{TEXTSHAPE{ISITALIC = YES}}}"+"\n")
+                f1.write(r"$!XYLINEAXIS XDETAIL 1 {TITLE{TEXTSHAPE{HEIGHT = 3}}}"+"\n")
+                f1.write(r"$!XYLINEAXIS XDETAIL 1 {TICKLABEL{TEXTSHAPE{ISBOLD = YES}}}"+"\n")
+                f1.write(r"$!XYLINEAXIS XDETAIL 1 {TICKLABEL{TEXTSHAPE{ISITALIC = YES}}}"+"\n")
+                f1.write(r"$!XYLINEAXIS YDETAIL 1 {TITLE{SHOWONAXISLINE = NO}}"+"\n")
+                f1.write(r"$!XYLINEAXIS YDETAIL 1 {TICKLABEL{TEXTSHAPE{ISBOLD = YES}}}"+"\n")
+                f1.write(r"$!XYLINEAXIS YDETAIL 1 {TICKLABEL{TEXTSHAPE{ISITALIC = YES}}}"+"\n")
+                f1.write(r"$!XYLINEAXIS YDETAIL 1 {COORDSCALE = LOG}"+"\n")
+                f1.write(r"$!PICK SETMOUSEMODE"+"\n")
+                f1.write(r"MOUSEMODE = SELECT"+"\n")
+                f1.write(r"$!ATTACHTEXT"+"\n")
+                f1.write(r"ANCHORPOS"+"\n")
+                f1.write(r"{"+"\n")
+                f1.write(r"X = 42.2831541219"+"\n")
+                f1.write(r"Y = 92.56327543419999"+"\n")
+                f1.write(r"}"+"\n")
+                f1.write(r"TEXTSHAPE"+"\n")
+                f1.write(r"{"+"\n")
+                f1.write(r"ISITALIC = YES"+"\n")
+                f1.write(r"SIZEUNITS = FRAME"+"\n")
+                f1.write(r"HEIGHT = 3.6"+"\n")
+                f1.write(r"}"+"\n")
+                f1.write(r"TEXT = 'ERROR_AVE'"+"\n")
+                f1.write(r"$!LINEMAP [1-2]  LINES{LINETHICKNESS = 0.59999999999999998}"+"\n")
+                f1.write(r"$!LINEMAP [1-2]  CURVES{CURVETYPE = PARASPLINE}"+"\n")
+                f1.write(r"$!PICK ADDATPOSITION"+"\n")
+                f1.write(r"X = 5.56451612903"+"\n")
+                f1.write(r"Y = 3.7040942928"+"\n")
+                f1.write(r"CONSIDERSTYLE = YES"+"\n")
+                f1.write(r"$!VIEW FIT"+"\n")
+                f1.write(r"$!EXPORTSETUP EXPORTFORMAT = JPEG"+"\n")
+                f1.write(r"$!EXPORTSETUP IMAGEWIDTH = 900"+"\n")
+                f1.write(r"$!VarSet |JPGSAVE| = '"+downpath+os.sep+repath+"_map"+r"'"+"\n")
+                f1.write(r"$!EXPORTSETUP EXPORTFNAME = '|JPGSAVE|"+os.sep+r"error_ave.jpeg'"+"\n")
+                f1.write(r"$!EXPORT"+"\n")
+                f1.write(r"EXPORTREGION = CURRENTFRAME"+"\n")
+                f1.write(r"$!PICK ADDATPOSITION"+"\n")
+                f1.write(r"X = 5.24689826303"+"\n")
+                f1.write(r"Y = 0.746277915633"+"\n")
+                f1.write(r"CONSIDERSTYLE = YES"+"\n")
+                f1.write(r"$!PICK ADDATPOSITION"+"\n")
+                f1.write(r"X = 5.24689826303"+"\n")
+                f1.write(r"Y = 0.746277915633"+"\n")
+                f1.write(r"CONSIDERSTYLE = YES"+"\n")
+                f1.write(r"$!ACTIVELINEMAPS = [2]"+"\n")
+                f1.write(r"$!LINEMAP [2]  LINES{COLOR = BLACK}"+"\n")
+                f1.write(r"$!PICK CLEAR"+"\n")
+                f1.write(r"$!ATTACHTEXT"+"\n")
+                f1.write(r"ANCHORPOS"+"\n")
+                f1.write(r"{"+"\n")
+                f1.write(r"X = 42.2831541219"+"\n")
+                f1.write(r"Y = 92.56327543419999"+"\n")
+                f1.write(r"}"+"\n")
+                f1.write(r"TEXTSHAPE"+"\n")
+                f1.write(r"{"+"\n")
+                f1.write(r"ISITALIC = YES"+"\n")
+                f1.write(r"SIZEUNITS = FRAME"+"\n")
+                f1.write(r"HEIGHT = 3.6"+"\n")
+                f1.write(r"}"+"\n")
+                f1.write(r"TEXT = 'ERROR_MAX'"+"\n")
+                f1.write(r"$!PICK ADDATPOSITION"+"\n")
+                f1.write(r"X = 6.20967741935"+"\n")
+                f1.write(r"Y = 2.51302729529"+"\n")
+                f1.write(r"CONSIDERSTYLE = YES"+"\n")
+                f1.write(r"$!VIEW FIT"+"\n")
+                f1.write(r"$!EXPORTSETUP EXPORTFNAME = '|JPGSAVE|"+os.sep+r"error_max.jpeg'"+"\n")
+                f1.write(r"$!EXPORT"+"\n")
+                f1.write(r"EXPORTREGION = CURRENTFRAME"+"\n")
+                f1.write(r"$!Quit"+"\n")
+                f1.write(r"$!RemoveVar |MFBD|"+"\n")
+                f1.write(r"$!RemoveVar |JPGSAVE|"+"\n")
+                f1.close()
+
+                
+    elif(Solvers=='ch20'):
+        case=select_case(testcase)
+        for line in case:
+            slist=select_sts(line[0])
+            for s in slist:
+                repath=s[2]
+                outputdir=os.path.join(testpath,repath)
+                if not os.path.exists(outputdir):
+                    os.makedirs(outputdir) 
+                fconv_mrc=os.path.join(outputdir,r'fconv.mcr')
+                f=open(fconv_mrc, 'w')
+                f.write(constant.tecplot['version']+"\n")
+                f.write(r"$!VarSet |MFBD| = '"+outputdir+r"'"+"\n")
+                f.write(r"$!READDATASET  '"+r'"|MFBD|'+os.sep+r'FCONV.dat" '+r"'"+"\n")
+                f.write(r"READDATAOPTION = NEW"+"\n")
+                f.write(r"RESETSTYLE = YES"+"\n")
+                f.write(r"INCLUDETEXT = NO"+"\n")
+                f.write(r"INCLUDEGEOM = NO"+"\n")
+                f.write(r"INCLUDECUSTOMLABELS = NO"+"\n")
+                f.write(r"VARLOADMODE = BYNAME"+"\n")
+                f.write(r"ASSIGNSTRANDIDS = YES"+"\n")
+                f.write(r"INITIALPLOTTYPE = XYLINE"+"\n")
+                f.write(r"VARNAMELIST = '"+r'"ISTEP" "CX" "CY" "CZ" "MX" "MY" "MZ"'+r"'"+"\n")
+                f.write(r"$!XYLINEAXIS XDETAIL 1 {TITLE{TEXTSHAPE{ISITALIC = YES}}}"+"\n")
+                f.write(r"$!XYLINEAXIS XDETAIL 1 {TITLE{TEXTSHAPE{HEIGHT = 3}}}"+"\n")
+                f.write(r"$!XYLINEAXIS XDETAIL 1 {TICKLABEL{TEXTSHAPE{ISBOLD = YES}}}"+"\n")
+                f.write(r"$!XYLINEAXIS XDETAIL 1 {TICKLABEL{TEXTSHAPE{ISITALIC = YES}}}"+"\n")
+                f.write(r"$!XYLINEAXIS YDETAIL 1 {TITLE{SHOWONAXISLINE = NO}}"+"\n")
+                f.write(r"$!XYLINEAXIS YDETAIL 1 {TICKLABEL{TEXTSHAPE{ISBOLD = YES}}}"+"\n")
+                f.write(r"$!XYLINEAXIS YDETAIL 1 {TICKLABEL{TEXTSHAPE{ISITALIC = YES}}}"+"\n")
+                f.write(r"$!ATTACHTEXT"+"\n")
+                f.write(r"ANCHORPOS"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"X = 49.17287014061208"+"\n")
+                f.write(r"Y = 91.68734491315136"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXTSHAPE"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"ISITALIC = YES"+"\n")
+                f.write(r"SIZEUNITS = FRAME"+"\n")
+                f.write(r"HEIGHT = 3.6"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXT = 'CX'"+"\n")
+                f.write(r"$!PICK SETMOUSEMODE"+"\n")
+                f.write(r"MOUSEMODE = SELECT"+"\n")
+                f.write(r"$!LINEMAP [1-6]  LINES{LINETHICKNESS = 0.59999999999999998}"+"\n")
+                f.write(r"$!LINEMAP [1-6]  CURVES{CURVETYPE = PARASPLINE}"+"\n")
+                f.write(r"$!VIEW FIT"+"\n")
+                f.write(r"$!EXPORTSETUP EXPORTFORMAT = JPEG"+"\n")
+                f.write(r"$!EXPORTSETUP IMAGEWIDTH = 900"+"\n")
+                f.write(r"$!VarSet |JPGSAVE| = '"+downpath+os.sep+repath+"_map"+r"'"+"\n")
+                f.write(r"$!EXPORTSETUP EXPORTFNAME = '|JPGSAVE|"+os.sep+r"cx.jpeg'"+"\n")
+                f.write(r"$!EXPORT "+"\n")
+                f.write(r"EXPORTREGION = CURRENTFRAME"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 5.64392059553"+"\n")
+                f.write(r"Y = 0.835607940447"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!PICK CLEAR"+"\n")
+                f.write(r"$!ATTACHTEXT"+"\n")
+                f.write(r"ANCHORPOS"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"X = 49.17287014061208"+"\n")
+                f.write(r"Y = 91.68734491315136"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXTSHAPE"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"ISITALIC = YES"+"\n")
+                f.write(r"SIZEUNITS = FRAME"+"\n")
+                f.write(r"HEIGHT = 3.6"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXT = 'CY'"+"\n")
+                f.write(r"$!ACTIVELINEMAPS = [2]"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 5.35607940447"+"\n")
+                f.write(r"Y = 3.37655086849"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!VIEW FIT"+"\n")
+                f.write(r"$!EXPORTSETUP EXPORTFNAME = '|JPGSAVE|"+os.sep+r"cy.jpeg'"+"\n")
+                f.write(r"$!EXPORT"+"\n")
+                f.write(r"EXPORTREGION = CURRENTFRAME"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 5.71339950372"+"\n")
+                f.write(r"Y = 0.746277915633"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!PICK CLEAR"+"\n")
+                f.write(r"$!ATTACHTEXT"+"\n")
+                f.write(r"ANCHORPOS"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"X = 49.17287014061208"+"\n")
+                f.write(r"Y = 91.68734491315136"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXTSHAPE"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"ISITALIC = YES"+"\n")
+                f.write(r"SIZEUNITS = FRAME"+"\n")
+                f.write(r"HEIGHT = 3.6"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXT = 'CZ'"+"\n")
+                f.write(r"$!ACTIVELINEMAPS = [3]"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 6.99379652605"+"\n")
+                f.write(r"Y = 2.64205955335"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!VIEW FIT"+"\n")
+                f.write(r"$!EXPORTSETUP EXPORTFNAME = '|JPGSAVE|"+os.sep+r"cz.jpeg'"+"\n")
+                f.write(r"$!EXPORT"+"\n")
+                f.write(r"EXPORTREGION = CURRENTFRAME"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 5.65384615385"+"\n")
+                f.write(r"Y = 0.795905707196"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!PICK CLEAR"+"\n")
+                f.write(r"$!ATTACHTEXT"+"\n")
+                f.write(r"ANCHORPOS"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"X = 49.17287014061208"+"\n")
+                f.write(r"Y = 91.68734491315136"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXTSHAPE"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"ISITALIC = YES"+"\n")
+                f.write(r"SIZEUNITS = FRAME"+"\n")
+                f.write(r"HEIGHT = 3.6"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXT = 'MX'"+"\n")
+                f.write(r"$!ACTIVELINEMAPS = [4]"+"\n")
+                f.write(r"$!LINEMAP [4]  LINES{COLOR = BLACK}"+"\n")
+                f.write(r"$!VIEW FIT"+"\n")
+                f.write(r"$!EXPORTSETUP EXPORTFNAME = '|JPGSAVE|"+os.sep+r"mx.jpeg'"+"\n")
+                f.write(r"$!EXPORT"+"\n")
+                f.write(r"EXPORTREGION = CURRENTFRAME"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 5.6141439206"+"\n")
+                f.write(r"Y = 0.795905707196"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!PICK CLEAR"+"\n")
+                f.write(r"$!ATTACHTEXT"+"\n")
+                f.write(r"ANCHORPOS"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"X = 49.17287014061208"+"\n")
+                f.write(r"Y = 91.68734491315136"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXTSHAPE"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"ISITALIC = YES"+"\n")
+                f.write(r"SIZEUNITS = FRAME"+"\n")
+                f.write(r"HEIGHT = 3.6"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXT = 'MY'"+"\n")
+                f.write(r"$!ACTIVELINEMAPS = [5]"+"\n")
+                f.write(r"$!LINEMAP [5]  LINES{COLOR = PURPLE}"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 5.96153846154"+"\n")
+                f.write(r"Y = 3.08870967742"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!VIEW FIT"+"\n")
+                f.write(r"$!EXPORTSETUP EXPORTFNAME = '|JPGSAVE|"+os.sep+r"my.jpeg'"+"\n")
+                f.write(r"$!EXPORT"+"\n")
+                f.write(r"EXPORTREGION = CURRENTFRAME"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 5.70347394541"+"\n")
+                f.write(r"Y = 0.73635235732"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!PICK CLEAR"+"\n")
+                f.write(r"$!ATTACHTEXT"+"\n")
+                f.write(r"ANCHORPOS"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"X = 49.17287014061208"+"\n")
+                f.write(r"Y = 91.68734491315136"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXTSHAPE"+"\n")
+                f.write(r"{"+"\n")
+                f.write(r"ISITALIC = YES"+"\n")
+                f.write(r"SIZEUNITS = FRAME"+"\n")
+                f.write(r"HEIGHT = 3.6"+"\n")
+                f.write(r"}"+"\n")
+                f.write(r"TEXT = 'MZ'"+"\n")
+                f.write(r"$!ACTIVELINEMAPS = [6]"+"\n")
+                f.write(r"$!LINEMAP [6]  LINES{COLOR = CUSTOM7}"+"\n")
+                f.write(r"$!PICK ADDATPOSITION"+"\n")
+                f.write(r"X = 4.93920595533"+"\n")
+                f.write(r"Y = 2.59243176179"+"\n")
+                f.write(r"CONSIDERSTYLE = YES"+"\n")
+                f.write(r"$!VIEW FIT"+"\n")
+                f.write(r"$!EXPORTSETUP EXPORTFNAME = '|JPGSAVE|"+os.sep+r"mz.jpeg'"+"\n")
+                f.write(r"$!EXPORT"+"\n")
+                f.write(r"EXPORTREGION = CURRENTFRAME"+"\n")
+                f.write(r"$!Quit"+"\n")
+                f.write(r"$!RemoveVar |MFBD|"+"\n")
+                f.write(r"$!RemoveVar |JPGSAVE|"+"\n")
+                f.close()
+				
+                econv_mrc=os.path.join(outputdir,r'econv.mcr')
+                f1=open(econv_mrc, 'w')
+                f1.write(constant.tecplot['version']+"\n")
+                f1.write(r"$!VarSet |MFBD| = '"+outputdir+r"'"+"\n")
+                f1.write(r"$!READDATASET  '"+r'"|MFBD|/'+repath+r'.ECONV" '+r"'"+"\n")
+                f1.write(r"READDATAOPTION = NEW"+"\n")
+                f1.write(r"RESETSTYLE = YES"+"\n")
+                f1.write(r"VARLOADMODE = BYNAME"+"\n")
+                f1.write(r"ASSIGNSTRANDIDS = YES"+"\n")
+                f1.write(r"$!FRAMELAYOUT SHOWBORDER = NO"+"\n")
+                f1.write(r"$!LINEMAP [1-2]  LINES{LINETHICKNESS = 0.400000000000000022}"+"\n")
+                f1.write(r"$!VIEW FIT"+"\n")
+                f1.write(r"$!XYLINEAXIS YDETAIL 1 {COORDSCALE = LOG}"+"\n")
+                f1.write(r"$!VIEW FIT"+"\n")
+                f1.write(r"$!EXPORTSETUP EXPORTFORMAT = JPEG"+"\n")
+                f1.write(r"$!PRINTSETUP PALETTE = COLOR"+"\n")
+                f1.write(r"$!EXPORTSETUP IMAGEWIDTH = 820"+"\n")
+                f1.write(r"$!VarSet |JPGSAVE| = '"+downpath+os.sep+repath+"_map"+r"'"+"\n")
+                f1.write(r"$!EXPORTSETUP EXPORTFNAME = '|JPGSAVE|/error_ave.jpeg'"+"\n")
+                f1.write(r"$!EXPORT "+"\n")
+                f1.write(r"EXPORTREGION = CURRENTFRAME"+"\n")
+                f1.write(r"$!ACTIVELINEMAPS += [2]"+"\n")
+                f1.write(r"$!ACTIVELINEMAPS -= [1]"+"\n")
+                f1.write(r"$!VIEW FIT"+"\n")
+                f1.write(r"$!EXPORTSETUP EXPORTFNAME = '|JPGSAVE|/error_max.jpeg'"+"\n")
+                f1.write(r"$!EXPORT "+"\n")
+                f1.write(r"EXPORTREGION = CURRENTFRAME"+"\n")
+                f1.close()
+
+def result_mrc():
+    global Users
+    global testpath
+    global Solvers
+    global testcase
+    global runexe
+    global downpath
+    
+    if(Solvers=='ch19'):
+        case=select_case(testcase)
+        for line in case:
+            slist=select_sts(line[0])
+            for s in slist:
+                repath=s[2]
+                outputdir=os.path.join(testpath,repath)
+                if not os.path.exists(outputdir):
+                    os.makedirs(outputdir) 
+                
+                r1_mrc=os.path.join(outputdir,'ch19.mcr')
+                r2_mrc=os.path.join(outputdir,'ch.mcr')
+                r3_mrc=os.path.join(outputdir,'target.mcr')
+
+                f1 = open(r1_mrc, 'r')
+                f2=open(r2_mrc,'w')
+                frow=0
+                for row in f1:
+                    b1=re.compile('ssheng').sub(outputdir,row)
+                    if frow==0:
+                        f2.write(constant.tecplot['version']+"\n")
+                        frow=frow+1
+                    else:
+                        f2.write(b1)
+                f1.close()
+                f2.close()
+
+                f2=open(r2_mrc,'r')
+                f3=open(r3_mrc,'w')
+                jpegsave=os.path.join(downpath,repath+"_map")
+                for row in f2:
+                    b2=re.compile('shusheng').sub(jpegsave,row)
+                    f3.write(b2)
+                f2.close()
+                f3.close()
+                
+                m1_mrc=os.path.join(outputdir,'ch19ma.mcr')
+                m2_mrc=os.path.join(outputdir,'ch.mcr')
+                m3_mrc=os.path.join(outputdir,'ma.mcr')
+
+                f1 = open(m1_mrc, 'r')
+                f2=open(m2_mrc,'w')
+                frow=0
+                for row in f1:
+                    b1=re.compile('ssheng').sub(outputdir,row)
+                    if frow==0:
+                        f2.write(constant.tecplot['version']+"\n")
+                        frow=frow+1
+                    else:
+                        f2.write(b1)
+                f1.close()
+                f2.close()
+
+                f2=open(m2_mrc,'r')
+                f3=open(m3_mrc,'w')
+                jpegsave=os.path.join(downpath,repath+"_map")
+                for row in f2:
+                    b2=re.compile('shusheng').sub(jpegsave,row)
+                    f3.write(b2)
+                f2.close()
+                f3.close()
+                
+                p1_mrc=os.path.join(outputdir,'ch19p.mcr')
+                p2_mrc=os.path.join(outputdir,'ch.mcr')
+                p3_mrc=os.path.join(outputdir,'pressure.mcr')
+
+                f1 = open(p1_mrc, 'r')
+                f2=open(p2_mrc,'w')
+                frow=0
+                for row in f1:
+                    b1=re.compile('ssheng').sub(outputdir,row)
+                    if frow==0:
+                        f2.write(constant.tecplot['version']+"\n")
+                        frow=frow+1
+                    else:
+                        f2.write(b1)
+                f1.close()
+                f2.close()
+
+                f2=open(p2_mrc,'r')
+                f3=open(p3_mrc,'w')
+                jpegsave=os.path.join(downpath,repath+"_map")
+                for row in f2:
+                    b2=re.compile('shusheng').sub(jpegsave,row)
+                    f3.write(b2)
+                f2.close()
+                f3.close()
+                
+    elif(Solvers=='ch20'):
+        case=select_case(testcase)
+        for line in case:
+            slist=select_sts(line[0])
+            for s in slist:
+                repath=s[2]
+                outputdir=os.path.join(testpath,repath)
+                if not os.path.exists(outputdir):
+                    os.makedirs(outputdir) 
+                
+                r1_mrc=os.path.join(outputdir,'field_file.mcr')
+                r2_mrc=os.path.join(outputdir,'ch.mcr')
+                r3_mrc=os.path.join(outputdir,'ch20.mcr')
+                r_mrc=os.path.join(outputdir,'target.mcr')
+                
+                
+                f2=open(r2_mrc,'w')
+                with open(r1_mrc) as f1:
+                     lines=f1.readlines()
+                     curr=lines[:-1]
+                     curr[0]=constant.tecplot['version']+"\n"
+                f1.close()
+                
+                f2.writelines(curr)
+                f2.close()
+
+                f2=open(r2_mrc,'a')
+                f3=open(r3_mrc,'r')
+
+                for row in f3:
+                    f2.write(row)
+                f2.close()
+                f3.close()
+
+                f2=open(r2_mrc,'r')
+                ftarget=open(r_mrc,'w')
+                jpegsave=os.path.join(downpath,repath+"_map")
+                for line in f2:
+                    b1=re.compile('shusheng').sub(jpegsave,line)
+                    ftarget.write(b1)
+                f2.close()
+                ftarget.close()
+                
+                r3_mrc=os.path.join(outputdir,'ch20ma.mcr')
+                r_mrc=os.path.join(outputdir,'ma.mcr')
+                
+                
+                f2=open(r2_mrc,'w')
+                with open(r1_mrc) as f1:
+                     lines=f1.readlines()
+                     curr=lines[:-1]
+                     curr[0]=constant.tecplot['version']+"\n"
+                f1.close()
+                
+                f2.writelines(curr)
+                f2.close()
+
+                f2=open(r2_mrc,'a')
+                f3=open(r3_mrc,'r')
+
+                for row in f3:
+                    f2.write(row)
+                f2.close()
+                f3.close()
+
+                f2=open(r2_mrc,'r')
+                ftarget=open(r_mrc,'w')
+                jpegsave=os.path.join(downpath,repath+"_map")
+                for line in f2:
+                    b1=re.compile('shusheng').sub(jpegsave,line)
+                    ftarget.write(b1)
+                f2.close()
+                ftarget.close()
+                
+                
+                r3_mrc=os.path.join(outputdir,'ch20p.mcr')
+                r_mrc=os.path.join(outputdir,'pressure.mcr')
+                
+                
+                f2=open(r2_mrc,'w')
+                with open(r1_mrc) as f1:
+                     lines=f1.readlines()
+                     curr=lines[:-1]
+                     curr[0]=constant.tecplot['version']+"\n"
+                f1.close()
+                
+                f2.writelines(curr)
+                f2.close()
+
+                f2=open(r2_mrc,'a')
+                f3=open(r3_mrc,'r')
+
+                for row in f3:
+                    f2.write(row)
+                f2.close()
+                f3.close()
+
+                f2=open(r2_mrc,'r')
+                ftarget=open(r_mrc,'w')
+                jpegsave=os.path.join(downpath,repath+"_map")
+                for line in f2:
+                    b1=re.compile('shusheng').sub(jpegsave,line)
+                    ftarget.write(b1)
+                f2.close()
+                ftarget.close()
+
+
+def analyse():
+    
+    global testpath
+    global testcase
+    
+    
+    if(Solvers=='ch19'):
+        case=select_case(testcase)
+        for line in case:
+            slist=select_sts(line[0])
+            for s in slist:
+                repath=s[2]
+                outputdir=os.path.join(testpath,repath)
+                if not os.path.exists(outputdir):
+                    os.makedirs(outputdir) 
+                
+                force_path=os.path.join(outputdir,"force.dat")
+                afiles_path=os.path.join(outputdir,"afiles")
+                case_path=os.path.join(afiles_path,repath+r'.FCONV')
+                outpath=os.path.join(outputdir,"analyse.dat")
+                f=open(force_path,"rb")
+                
+                fread=f.read().split("\n")
+                fread.pop(0)
+                
+                f1=fread[0].split()
+                
+                f2=[]
+                
+                for li in f1:
+                    f2.append(float(li))
+                
+                fd=open(case_path,"r")
+                fc=fd.readlines()
+                linecount=len(fc)
+                
+                fck=fc[linecount-1].split("\n")
+                fck.pop()
+                fda=fck[0].split()
+                fda.pop(0)
+                
+                f3=[]
+                
+                for li in fda:
+                    f3.append(float(li))
+                
+                error=[]
+                percent=[]
+                for i in range(len(f2)):
+                    error.append(abs(f3[i]-f2[i]))
+                    percent.append(abs((f3[i]-f2[i])/f2[i])*100)
+                
+                fout=open(outpath,"w")
+                fout.write(r"CX  CY  CZ  MX  MY  MZ"+"\n")
+                for i in range(len(f2)):
+                    fout.write(str(f2[i])+r"  ")
+                fout.write("\n")
+                for i in range(len(f2)):
+                    fout.write(str(f3[i])+r"  ")
+                fout.write("\n")
+                for i in range(len(f2)):
+                    fout.write(str(error[i])+r"  ")
+                fout.write("\n")
+                for i in range(len(f2)):
+                    fout.write(str(percent[i])+r"%  ")
+                fout.write("\n")
+                
+                fout.close()
+                f.close()
+                fd.close()
+				
+    elif(Solvers=='ch20'):
+        case=select_case(testcase)
+        for line in case:
+            slist=select_sts(line[0])
+            for s in slist:
+                repath=s[2]
+                outputdir=os.path.join(testpath,repath)
+                if not os.path.exists(outputdir):
+                    os.makedirs(outputdir)
+                force_path=os.path.join(outputdir,"force.dat")
+                case_path=os.path.join(outputdir,r'FCONV.dat')
+                outpath=os.path.join(outputdir,"analyse.dat")
+                f=open(force_path,"rb")
+                
+                fread=f.read().split("\n")
+                fread.pop(0)
+                
+                f1=fread[0].split()
+                
+                f2=[]
+                
+                for li in f1:
+                    f2.append(float(li))
+                
+                fd=open(case_path,"r")
+                fc=fd.readlines()
+                linecount=len(fc)
+                
+                fck=fc[linecount-1].split("\n")
+                fck.pop()
+                fda=fck[0].split()
+                fda.pop(0)
+                
+                f3=[]
+                
+                for li in fda:
+                    f3.append(float(li))
+                
+                error=[]
+                percent=[]
+                for i in range(len(f2)):
+                    error.append(abs(f3[i]-f2[i]))
+                    percent.append(abs((f3[i]-f2[i])/f2[i])*100)
+                
+                fout=open(outpath,"w")
+                fout.write(r"CX  CY  CZ  MX  MY  MZ"+"\n")
+                for i in range(len(f2)):
+                    fout.write(str(f2[i])+r"  ")
+                fout.write("\n")
+                for i in range(len(f2)):
+                    fout.write(str(f3[i])+r"  ")
+                fout.write("\n")
+                for i in range(len(f2)):
+                    fout.write(str(error[i])+r"  ")
+                fout.write("\n")
+                for i in range(len(f2)):
+                    fout.write(str(percent[i])+r"%  ")
+                fout.write("\n")
+                
+                fout.close()
+                f.close()
+                fd.close()
+    
+def run_project():
+    global runexe
+    global testcase
+    global testpath
+    global number_path
+
+    f=open(number_path,'w')
+    case=select_case(testcase)
+    for line in case:
+        slist=select_sts(line[0])
+        for s in slist:
+            repath=s[2]
+            rundir=os.path.join(testpath,repath)
+            if not os.path.exists(rundir):
+                os.makedirs(rundir)
+            if platform.system() =='Windows':
+                cmd='cd '+rundir+' & start '+runexe
+                print cmd
+                os.system(cmd)
+            else:
+                cmd=r'cd '+rundir+r';'+constant.pbs['qsub']+r' '+runexe
+                print cmd
+                proc=subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE,)
+                remainder=proc.communicate()[0]
+                print remainder
+                mainder=remainder.split(".")
+                la=mainder.pop(0)
+                f.write(s[2]+'  '+str(la)+"\n")
+  
+    f.close()
+
+def rerun_project():
+    global runexe
+    global testcase
+    global testpath
+    global number_path
+
+    f=open(number_path,'w')
+    case=select_case(testcase)
+    for line in case:
+        slist=select_sts(line[0])
+        for s in slist:
+            repath=s[2]
+            rundir=os.path.join(testpath,repath)
+            print rundir
+            changests(rundir)
+            if not os.path.exists(rundir):
+                os.makedirs(rundir)
+            if platform.system() =='Windows':
+                cmd='cd '+rundir+' & start '+runexe
+                print cmd
+                os.system(cmd)
+            else:
+                cmd=r'cd '+rundir+r';'+constant.pbs['qsub']+r' '+runexe
+                print cmd
+                proc=subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE,)
+                remainder=proc.communicate()[0]
+                print remainder
+                mainder=remainder.split(".")
+                la=mainder.pop(0)
+                f.write(s[2]+'  '+str(la)+"\n")
+                
+    f.close()
+    
+def changests(dirname):
+    filests=dirname+os.sep+'bhcfd.sts'
+    print filests
+    sts=Config19(filename=filests)
+
+    sts['IsRestart']="1"
+    filestsou=dirname+os.sep+'bhcfd.sts'
+    sts.write(filestsou)
+	
+	
+def checkjob(state):
+    global number_path
+    global state_path
+    
+    cmd=constant.pbs['qstat']
+    proc=subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE,)
+    ream=proc.communicate()[0]
+    fstate=open(state_path,'w')
+    if not ream :
+       fstate.write('Maybe The program has been completed!'+"\n")
+       fstate.close
+       return
+    re=ream.split("\n")
+    re.pop()
+    re.pop(0)
+    re.pop(0)
+    
+    s={}
+    for line in re:
+        a=line.split()
+        c=a[0].split('.')
+        s[c[0]]=a[4]
+    
+    f=open(number_path,'rb')
+    num_reader=f.read().split("\n")
+    num_reader.pop()
+    num={}
+    f.close()
+
+    for line in num_reader:
+        i=line.split()
+        print i
+        num[i[0]]=i[1]
+        
+    status={}
+    for i in s.keys():
+        for j in num.keys():
+            if str(i)==num[j]:
+                status[j]=s[i]
+                break
+                
+    
+    if state!='k':
+        for i in num.keys():
+            strue=False
+            for j in status.keys():
+                if i==j:
+                    if (status[i]=='R'):
+                        fstate.write(i+' in '+num[i]+' status is '+' R: '+'The program is running! You can kill it!'+"\n")
+                    elif (status[i]=='E'):
+                        fstate.write(i+' in '+num[i]+' status is '+' E: '+'The program has exited! Perhaps there are errors!'+"\n")
+                    elif (status[i]=='Q'):
+                        fstate.write(i+' in '+num[i]+' status is '+' Q: '+'The program is suspended state to wait for the compute nodes!'+"\n")
+                    elif (status[i]=='C'):
+                        fstate.write(i+' in '+num[i]+' status is '+' C: '+'The program has been completed!'+"\n")
+                    strue=True
+                    break
+            if not strue:
+                fstate.write(i+' in '+num[i]+', Maybe the program has been completed or there are errors!'+"\n")
+                
+    
+    if state=='k':
+        fstate.write('Kill all nodes!'+"\n")
+        for i in num.keys():
+            strue=False
+            for j in status.keys():
+                if i==j:
+                    if (status[i]=='R'):
+                        cmd1=constant.pbs['qdel']+r' '+num[i]
+                        os.system(cmd1)
+                        fstate.write(i+' in '+num[i]+' status is running'+' And has killed!'+"\n")
+                    elif (status[i]=='Q'):
+                        cmd1=constant.pbs['qdel']+r' '+num[i]
+                        os.system(cmd1)
+                        fstate.write(i+' in '+num[i]+' status is suspended'+' And has killed!'+"\n")
+                    strue=True
+                    break
+            if not strue:
+                fstate.write(i+' in '+num[i]+', Maybe the program has been completed or there are errors!'+"\n")
+    fstate.close()
+
+
+    
+def DeleteFile(Dir):
+    if os.path.isfile(Dir):
+        try:
+            os.remove(Dir)
+        except:
+            pass
+    elif os.path.isdir(Dir):
+        for item in os.listdir(Dir):
+            itemdir=os.path.join(Dir,item)
+            DeleteFile(itemdir)
+        try:
+            os.rmdir(Dir)
+        except:
+            pass
+
+def removeFile(targetDir): 
+    for files in os.listdir(targetDir): 
+        targetFile = os.path.join(targetDir,files) 
+        if os.path.isfile(targetFile): 
+             os.remove(targetFile)
+             
+def eraseFile():
+    global testpath
+
+    DeleteFile(testpath)
+
+
+
+def plot():
+    global testcase
+    global testpath
+    global downpath
+    
+    if(Solvers=='ch19'):
+        case=select_case(testcase)
+        for line in case:
+            slist=select_sts(line[0])
+            for s in slist:
+                repath=s[2]
+                rundir=os.path.join(testpath,repath)
+                outputdir=os.path.join(downpath,repath+"_map")
+                if not os.path.exists(outputdir):
+                    os.makedirs(outputdir)
+                if platform.system() =='Windows':
+                    cmd1='cd '+rundir+' & start '+r'fconv.mcr'
+                    cmd2='cd '+rundir+' & start '+r'econv.mcr'
+                    print cmd1
+                    print cmd2
+                    os.system(cmd1)
+                    os.system(cmd2)
+                else:
+                    cmd1=constant.tecplot['path']+r' -b '+rundir+r'/'+r'fconv.mcr'
+                    cmd2=constant.tecplot['path']+r' -b '+rundir+r'/'+r'econv.mcr'
+                    print cmd1
+                    print cmd2
+                    os.system(cmd1)
+                    os.system(cmd2)
+    
+    elif(Solvers=='ch20'):
+        case=select_case(testcase)
+        for line in case:
+            slist=select_sts(line[0])
+            for s in slist:
+                repath=s[2]
+                rundir=os.path.join(testpath,repath)
+                outputdir=os.path.join(downpath,repath+"_map")
+                if not os.path.exists(outputdir):
+                    os.makedirs(outputdir)
+                if platform.system() =='Windows':
+                    cmd1='cd '+rundir+' & start '+r'fconv.mcr'
+                    print cmd1
+                    os.system(cmd1)
+                else:
+                    cmd1=constant.tecplot['path']+r' -b '+rundir+r'/'+r'fconv.mcr'
+                    print cmd1
+                    os.system(cmd1)
+
+def plot1():
+    global testcase
+    global testpath
+    global downpath
+    
+    result_mrc()
+    if(Solvers=='ch19'):
+        case=select_case(testcase)
+        for line in case:
+            slist=select_sts(line[0])
+            for s in slist:
+                repath=s[2]
+                rundir=os.path.join(testpath,repath)
+                outputdir=os.path.join(downpath,repath+"_map")
+                if not os.path.exists(outputdir):
+                    os.makedirs(outputdir)
+                if platform.system() =='Windows':
+                    cmd1='cd '+rundir+' & start '+r'ma.mcr'
+                    cmd2='cd '+rundir+' & start '+r'pressure.mcr'
+                    cmd3='cd '+rundir+' & start '+r'target.mcr'
+                    print cmd1
+                    print cmd2
+                    print cmd3
+                    os.system(cmd1)
+                    os.system(cmd2)
+                    os.system(cmd3)
+                else:
+                    cmd1=constant.tecplot['path']+r' -b '+rundir+r'/'+r'ma.mcr'
+                    cmd2=constant.tecplot['path']+r' -b '+rundir+r'/'+r'pressure.mcr'
+                    cmd3=constant.tecplot['path']+r' -b '+rundir+r'/'+r'target.mcr'
+                    print cmd1
+                    print cmd2
+                    print cmd3
+                    os.system(cmd1)
+                    os.system(cmd2)
+                    os.system(cmd3)
+    
+    elif(Solvers=='ch20'):
+        case=select_case(testcase)
+        for line in case:
+            slist=select_sts(line[0])
+            for s in slist:
+                repath=s[2]
+                rundir=os.path.join(testpath,repath)
+                outputdir=os.path.join(downpath,repath+"_map")
+                if not os.path.exists(outputdir):
+                    os.makedirs(outputdir)
+                if platform.system() =='Windows':
+                    cmd1='cd '+rundir+' & start '+r'ma.mcr'
+                    cmd2='cd '+rundir+' & start '+r'pressure.mcr'
+                    cmd3='cd '+rundir+' & start '+r'target.mcr'
+                    print cmd1
+                    print cmd2
+                    print cmd3
+                    os.system(cmd1)
+                    os.system(cmd2)
+                    os.system(cmd3)
+                else:
+                    cmd1=constant.tecplot['path']+r' -b '+rundir+r'/'+r'ma.mcr'
+                    cmd2=constant.tecplot['path']+r' -b '+rundir+r'/'+r'pressure.mcr'
+                    cmd3=constant.tecplot['path']+r' -b '+rundir+r'/'+r'target.mcr'
+                    print cmd1
+                    print cmd2
+                    print cmd3
+                    os.system(cmd1)
+                    os.system(cmd2)
+                    os.system(cmd3)
+                    
+                
+def download_list():
+    global testpath
+    global Solvers
+    global testcase
+    global downpath
+    
+    
+    if(Solvers=='ch19'):
+        case=select_case(testcase)
+        for line in case:
+            slist=select_sts(line[0])
+            for s in slist:
+                repath=s[2]
+                outputdir=os.path.join(downpath,repath)
+                rundir=os.path.join(testpath, repath)
+                afiles_path=os.path.join(rundir,'afiles')
+                for files in os.listdir(afiles_path):
+                    sourceFile=os.path.join(afiles_path,files) 
+                    if os.path.isfile(sourceFile):
+                        if not os.path.exists(outputdir):
+                            os.makedirs(outputdir)
+                        shutil.copy(sourceFile,outputdir)
+                        
+                pout_path=os.path.join(rundir,'pout')
+                for files in os.listdir(pout_path):
+                    sourceFile=os.path.join(pout_path,files) 
+                    if os.path.isfile(sourceFile):
+                        if not os.path.exists(outputdir):
+                            os.makedirs(outputdir)
+                        shutil.copy(sourceFile,outputdir)
+                        
+                rfiles_path=os.path.join(rundir,'rfiles')
+                for files in os.listdir(rfiles_path):
+                    sourceFile=os.path.join(rfiles_path,files) 
+                    if os.path.isfile(sourceFile):
+                        if not os.path.exists(outputdir):
+                            os.makedirs(outputdir)
+                        shutil.copy(sourceFile,outputdir)
+                
+                tarname=repath+'.tar.gz'
+                cmd1=r'cd '+downpath+r';'+r'tar czvf '+tarname+' '+repath
+                os.system(cmd1)
+                cmd2=r'cd '+downpath+r';'+r'rm -fr '+repath
+                os.system(cmd2)
+                
+    elif(Solvers=='ch20'):
+        case=select_case(testcase)
+        for line in case:
+            slist=select_sts(line[0])
+            for s in slist:
+                repath=s[2]
+                rundir=os.path.join(testpath,repath)
+                field_path=os.path.join(rundir,"field_file")
+                outputdir=os.path.join(downpath,repath)
+                outfield_path=os.path.join(outputdir,"field_file")
+                
+                if not os.path.exists(outputdir):
+                    os.makedirs(outputdir)
+                if not os.path.exists(outfield_path):
+                    os.makedirs(outfield_path)
+            
+                for files in os.listdir(field_path):
+                    sourceFile=os.path.join(field_path,files) 
+                    if os.path.isfile(sourceFile):
+                        shutil.copy(sourceFile,outfield_path)
+
+                file1=glob.glob(rundir+os.sep+r'field_file.mcr')
+                file1+=glob.glob(rundir+os.sep+r'FCONV.dat')
+                file1+=glob.glob(rundir+os.sep+r'FDATA.csv')
+                for files in os.listdir(rundir):
+                    sourceFile=os.path.join(rundir,files) 
+                    if os.path.isfile(sourceFile):
+                        if sourceFile==file1[0] or sourceFile==file1[1] or sourceFile==file1[2]:
+                            shutil.copy(sourceFile,outputdir)
+                tarname=repath+'.tar.gz'
+                cmd1=r'cd '+downpath+r';'+r'tar czvf '+tarname+' '+repath
+                os.system(cmd1)
+                cmd2=r'cd '+downpath+r';'+r'rm -fr '+repath
+                os.system(cmd2)
+                
+                
+def main(args):
+    global testpath
+    
+    parser=optparse.OptionParser()
+    parser.add_option('-r','--run',dest="rflag",default=False,action="store_true")
+    parser.add_option('-g','--gen',dest="gflag",default=False,action="store_true")
+    parser.add_option('-k','--kill',dest="kflag",default=False,action="store_true")
+    parser.add_option('-x','--rerun',dest="reflag",default=False,action="store_true")
+    parser.add_option('-s','--erase',dest="sflag",default=False,action="store_true")
+    parser.add_option('-c','--check',dest="cflag",default=False,action="store_true")
+    parser.add_option('-p','--plot',dest="pflag",default=False,action="store_true")
+    parser.add_option('-a','--analyse',dest="aflag",default=False,action="store_true")
+    parser.add_option('-d','--download',dest="dflag",default=False,action="store_true")
+    parser.add_option('-u','--upload',dest="uflag",default=False,action="store_true")
+    parser.add_option('--cprun',dest="cprunflag",default=False,action="store_true")
+    parser.add_option('--list=',dest="lists",action="store",type=str)
+    option,args=parser.parse_args()
+    runflag=False
+
+    if option.gflag:
+        getrunsh()
+        getsts()
+        tecplot_mrc()
+        cp()
+        runflag=True
+    if option.rflag:
+        getrunsh()
+        getsts()
+        tecplot_mrc()
+        cp()
+        run_project()
+        runflag=True
+    if option.reflag:
+        rerun_project()
+        runflag=True
+    if option.cflag:
+        checkjob('c')
+        runflag=True
+    if option.kflag:
+        checkjob('k')
+        runflag=True
+    if option.sflag:
+        eraseFile()
+        runflag=True
+    if option.pflag:
+        plot()
+        plot1()
+        runflag=True
+    if option.dflag:
+        download_list()
+        runflag=True
+    if option.aflag:
+        analyse()
+        runflag=True
+#    if option.uflag:
+#        get_csv_config()
+#        if option.lists:
+#            par_upload_list(option.lists)
+#        runflag=True
+#    if option.sflag:
+#        get_csv_config()
+#        if option.lists:
+#            eraseFile(option.lists)
+#        runflag=True
+#    if option.cprunflag:
+#        get_csv_config()
+#        cp()
+#        run_project()
+#        runflag=True     
+    if not runflag:
+        print unicode("""Created on Fri Jun 12 17:03:58 2015
+    .. help::
+    配置文件bhcfd.sts.template
+    python solver.py  -r(或者：--run，第一次提状态使用,相应的生成run.sh/bhcfd.sts,然后cp,run_project)
+    python solver.py  -g(任何时候可单独使用，相应的生成run.sh/bhcfd.sts)
+    python solver.py  -x(或者：--rerun，sts更改istart,cfl,nstep,并提交)
+    python solver.py  -s --list=*(--san，删除计算文件，list指定后缀，*全删除)
+    python solver.py  -k(或者：--kill，停状态)
+    python solver.py  -c(或者：--check)
+    python solver.py  -u --list=bhcfd.sts(--upload,将filetocopy中list指定名字上传)
+                    多个文件：    --list=bhcfd.sts,bhcfd.grd,bhcfd.bc
+    python solver.py  -d --list=FCONV,ECONV  (--download,list指定后缀下载文件)
+    python solver.py  -p (生成力曲线图、残差收敛图、结果对比图)
+
+    @author:ssheng
+   ""","utf-8")
+     
+if __name__=="__main__":
+    main(sys.argv)
