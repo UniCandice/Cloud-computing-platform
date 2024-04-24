@@ -1,0 +1,20 @@
+0.backup your old file which may be overwrote by follows
+
+cfd_prefix means your root directory of your website ,/opt/web,for example
+1.cp menu_main.php to cfd_prefix
+2.cp l_upload.php to cfd_prefix
+3.cp l_upload_file.php to cfd_prefix
+4.cp UploadFile.jar  to jdkpath/jre/lib/ext/   (if you never install jdk, you should download jdk at 1.8 version.)
+5.cp JavaBridge.jar  to jdkpath/jre/lib/ext/
+6.cp Java.inc  to the path as l_upload_file.php said on line 54
+7.mkdir cfd_prefix/uploadfiles   &&   chmod 777  cfd_prefix/uploadfiles
+
+restart java or restart computer
+
+1.java -jar jdkpath/jre/lib/ext/JavaBridge.jar
+2.ok. login and do more test...
+
+
+if you encounter any problem, the jdkpath/jre/lib/ext/JavaBridge.log will tell you something
+
+one more thing, the jar uploader will take the file (who's names begins with 'ch') as Solver
