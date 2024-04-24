@@ -1,0 +1,22 @@
+
+请据以下步骤 顺序操作
+0.备份你的文件
+
+1.php原因,将django的用户密码加密方式改为 md5
+	方法：需要在django中的一个配置文件中 添加一段代码 ，虚拟机中的是已改好的，请见虚拟机 具体那个文件我忘了  可以在/opt下用grep PASSWORD_HASHERS 查找 找到unsaltedmd5....就是我添加的
+
+2.为django添加管理员 此时数据库中的密码为md5方式的，是正确的
+  	执行 python manage.py createsuperuser 即可
+	参考链接：http://www.netbycom.cn/development/python/14075829156022.html
+
+3.将本目录下的所有文件复制并覆盖网站文件
+	此时，php网站和django应该是可用的了
+	a.使用管理员登录django添加学生用户
+	b.登录php网站，可以进行操作，也可以修改密码
+
+4.文件上传选择器,使用 java -jar FileUpload.jar 查看效果，网页中暂时还不可用 原因：JavaBridge报错
+	prepare : jdk
+
+5.将php里面的用户apache改成cfd (pbs权限问题）
+
+6.将session.save_path路径/var/lib/php/session改成当前路径下的
